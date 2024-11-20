@@ -12,6 +12,6 @@
 
 ```[bash]
 # from repo top-level
-./scripts/run_sampler_comb.sh
+./scripts/run_sampler_seq.sh
 ```
 Instructions are same across all benchmark subsets.
