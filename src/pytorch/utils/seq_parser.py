@@ -12,13 +12,8 @@ import re
 def extract_variables(expr, inputs, registers):
     # Regular expression pattern to match variables inside parentheses
     pattern = r'\((.*?)\)'
-    # Find all matches of the pattern in the expression
     matches = re.findall(pattern, expr)
-    # Split each match by commas and strip to get individual variables
     variables = [var.strip() for match in matches for var in match.split(',')]
-    #variables = [var for var in variables if not var.startswith('self.')]
-    ##variables = [var for var in variables if var not in registers]
-    ##variables = [var for var in variables if var not in inputs]
     return variables
 
 def refine(text, registers, inputs):
@@ -56,10 +51,10 @@ def refine(text, registers, inputs):
             G.add_edge(dep, variable)
     # Topological sorting of statements
     sorted_vars = list(nx.topological_sort(G))
-    rearranged_statements = [f"{var} = {expressions[var]}" for var in sorted_vars if var not in inputs and var not in registers]
+    rearranged_statements = [f"{var} = {expressions[var]}" for var in sorted_vars if var in expressions and var not in inputs and var not in registers]
     modified_input_string = '\n'.join(rearranged_statements)
     
-    return modified_input_string.strip().split('\n'), states 
+    return modified_input_string.strip().split('\n'), states
 
 
 
@@ -93,32 +88,34 @@ def generate_sequential_pytorch_model(module_name, inputs, outputs, registers, a
                        f"        super().__init__()\n"
     class_definition += f"        self.batch_size = batch_size\n"
     class_definition += f"        self.device = device\n"
-    '''for register in registers:
-        class_definition += f"        self.{register} = torch.zeros((batch_size, 1), device = device)\n"
-    class_definition += "\n"
-    class_definition += f"    def reset_registers(self):\n"
     for register in registers:
-        class_definition += f"        self.{register} = self.{register} * 0\n"
-    class_definition += "\n"
-    class_definition += f"    def detach_registers(self):\n"
+        class_definition += f"        self.{register} = nn.Parameter(torch.full((self.batch_size, 1), -3.5, device = self.device))\n"
+    class_definition += f"    def init_registers(self, rand = False):\n"
+    class_definition += f"        if rand:\n"
     for register in registers:
-        class_definition += f"        self.{register} = self.{register}.detach()\n"'''
-    class_definition += f"    def init_registers(self):\n"
+        class_definition += f"            nn.init.xavier_uniform_(self.{register}.data)\n"
+    class_definition += f"        else:\n"
     for register in registers:
-        class_definition += f"        {register} = torch.zeros((self.batch_size, 1), device = self.device)\n"
-    class_definition += f"        return {', '.join(registers)}\n"
+        class_definition += f"            self.{register}.data.fill_(-3.5)\n"
+    class_definition += f"    def set_registers(self, set):\n"
+    for register in registers:
+        class_definition += f"        self.{register}.requires_grad = set\n"
+    class_definition += f"    def call_registers(self):\n"
+    for register in registers:
+        class_definition += f"        self.{register}.data.clamp_(-3.5, 3.5)\n"
+    class_definition += f"        return {', '.join(['sigmoid(20. * self.{})'.format(reg) for reg in registers])}\n"
     class_definition += "\n"
     class_definition += f"    def forward(self, inputs, registers):\n"
-    class_definition += f"        {', '.join(inputs)} = inputs\n"
-    class_definition += f"        {', '.join(registers)} = registers\n"
+    
+    class_definition += f"        {', '.join(inputs)+','} = inputs\n"
+    for i, term in enumerate(registers, start=0):
+        class_definition += f"        {term} = registers[{i}]\n"
     logics_assignments, registers_assignments = refine(assignments, registers, inputs)
     for assignment in logics_assignments:
         class_definition += f"        {assignment}\n"
-    '''for assignment in registers_assignments:
-        class_definition += f"        {assignment}\n"'''
-    registers_assignments = [f"repeater({assignment})" for assignment in registers_assignments]
+    registers_assignments = [f"{assignment}" for assignment in registers_assignments]
     class_definition += f"        states = {', '.join(registers_assignments)}\n"
-    class_definition += f"        outputs = {', '.join(outputs)}\n"
+    class_definition += f"        outputs = [{', '.join(outputs)}]\n"
     class_definition += "\n" \
                        f"        return outputs, states\n"
     return class_definition

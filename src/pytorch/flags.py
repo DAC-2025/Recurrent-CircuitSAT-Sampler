@@ -58,6 +58,12 @@ def parse_args():
         help="Number of clock cycles for sequential circuits.",
     )
     parser.add_argument(
+        "--start_point",
+        type=int,
+        default=0,
+        help="Number of clock cycles for sequential circuits.",
+    )
+    parser.add_argument(
         "--b2",
         type=str,
         default="0.99,0.999",
